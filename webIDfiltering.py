@@ -83,16 +83,29 @@ html, body, [class*="css"] {
     flex-shrink: 0;
     transition: background 0.12s, border-color 0.12s, color 0.12s;
     position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.item-id:active {
-    background: #1a3a70;
-}
+.item-id:active { background: #1a3a70; }
 
 .item-id.copied {
     background: #0a2a1a;
     border-color: #1a7040;
     color: #4caf50;
+}
+
+/* Hidden input inside badge for copy trick */
+.id-val {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    border: none;
+    padding: 0;
+    pointer-events: none;
+    top: 0; left: 0;
 }
 
 .item-name {
@@ -250,23 +263,7 @@ hr { border: none; border-top: 1px solid #1e2330; margin: 1rem 0; }
     border: 1px solid #1e2330 !important;
 }
 
-/* Style st.code blocks as ID badges */
-.stCode > div {
-    background: #0a1428 !important;
-    border: 1px solid #1a3a70 !important;
-    border-radius: 3px !important;
-}
-.stCode code {
-    color: #2a7fff !important;
-    font-family: 'Share Tech Mono', monospace !important;
-    font-size: 0.85rem !important;
-    letter-spacing: 0.05em !important;
-}
-.stCode button { color: #2a7fff !important; }
-[data-testid="column"] {
-    padding-top: 0.1rem !important;
-    padding-bottom: 0.1rem !important;
-}
+
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 header {visibility: hidden;}
@@ -275,34 +272,29 @@ header {visibility: hidden;}
 <!-- Toast element -->
 <div id="copy-toast">Copied!</div>
 
-<input id="copy-helper" readonly style="position:fixed;top:-999px;left:-999px;opacity:0;width:1px;height:1px;">
-
 <script>
-function copyID(el, id) {
-    var helper = document.getElementById('copy-helper');
-    helper.value = id;
-    helper.removeAttribute('disabled');
-    helper.focus();
-    helper.select();
-    helper.setSelectionRange(0, 99999);
+function selectCopy(badge) {
+    var inp = badge.querySelector('.id-val');
+    var id  = inp.value;
 
-    var ok = false;
-    try { ok = document.execCommand('copy'); } catch(e) {}
+    // 1. select the hidden input text (works in sandbox)
+    inp.focus();
+    inp.select();
+    inp.setSelectionRange(0, 99999);
+    try { document.execCommand('copy'); } catch(e) {}
 
-    if (!ok && navigator.clipboard) {
+    // 2. also try modern clipboard API (works on https desktop)
+    if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(id).catch(function(){});
     }
 
-    showCopied(el, id);
-}
-
-function showCopied(el, id) {
-    el.classList.add('copied');
+    // 3. visual feedback
+    badge.classList.add('copied');
     var toast = document.getElementById('copy-toast');
     toast.textContent = 'Copied: ' + id;
     toast.classList.add('show');
     setTimeout(function() {
-        el.classList.remove('copied');
+        badge.classList.remove('copied');
         toast.classList.remove('show');
     }, 1400);
 }
@@ -490,21 +482,26 @@ st.markdown(f"""
 if not filtered:
     st.markdown('<div class="no-results">// no items match your query</div>', unsafe_allow_html=True)
 else:
+    cards_html = ""
     for item_id, name, weapon, skin in filtered:
-        col_id, col_name = st.columns([1, 4])
-        with col_id:
-            st.code(item_id, language=None)
-        with col_name:
-            if skin:
-                st.markdown(
-                    f'<div class="item-name" style="padding:0.45rem 0"><span class="item-weapon">{weapon}</span><span class="separator"> | </span><span class="item-skin">{skin}</span></div>',
-                    unsafe_allow_html=True
-                )
-            else:
-                st.markdown(
-                    f'<div class="item-name" style="padding:0.45rem 0"><span class="item-skin">{name}</span></div>',
-                    unsafe_allow_html=True
-                )
+        if skin:
+            display_name = f'<span class="item-weapon">{weapon}</span><span class="separator">|</span><span class="item-skin">{skin}</span>'
+        else:
+            display_name = f'<span class="item-skin">{name}</span>'
+
+        safe_id = item_id.replace("'", "\\'")
+        # Each card has a hidden input with the ID value.
+        # Clicking the badge selects+copies that input — works inside Streamlit iframe.
+        cards_html += f"""
+<div class="item-card">
+  <span class="item-id" onclick="selectCopy(this)" title="Tap to copy">
+    {item_id}
+    <input class="id-val" value="{safe_id}" readonly tabindex="-1">
+  </span>
+  <span class="item-name">{display_name}</span>
+</div>"""
+
+    st.markdown(cards_html, unsafe_allow_html=True)
 
 # -----------------------
 # Export box
