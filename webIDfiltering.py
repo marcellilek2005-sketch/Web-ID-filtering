@@ -258,30 +258,24 @@ header {visibility: hidden;}
 <!-- Toast element -->
 <div id="copy-toast">Copied!</div>
 
+<input id="copy-helper" readonly style="position:fixed;top:-999px;left:-999px;opacity:0;width:1px;height:1px;">
+
 <script>
 function copyID(el, id) {
-    // Try clipboard API first
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(id).then(function() {
-            showCopied(el, id);
-        }).catch(function() {
-            fallbackCopy(el, id);
-        });
-    } else {
-        fallbackCopy(el, id);
-    }
-}
+    var helper = document.getElementById('copy-helper');
+    helper.value = id;
+    helper.removeAttribute('disabled');
+    helper.focus();
+    helper.select();
+    helper.setSelectionRange(0, 99999);
 
-function fallbackCopy(el, id) {
-    var ta = document.createElement('textarea');
-    ta.value = id;
-    ta.style.position = 'fixed';
-    ta.style.opacity = '0';
-    document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
-    try { document.execCommand('copy'); } catch(e) {}
-    document.body.removeChild(ta);
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch(e) {}
+
+    if (!ok && navigator.clipboard) {
+        navigator.clipboard.writeText(id).catch(function(){});
+    }
+
     showCopied(el, id);
 }
 
