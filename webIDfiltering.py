@@ -1,6 +1,5 @@
 import streamlit as st
 import json
-import os
 from pathlib import Path
 
 # -----------------------
@@ -8,13 +7,13 @@ from pathlib import Path
 # -----------------------
 st.set_page_config(
     page_title="Skin Filter",
-    page_icon="🔪",
+    page_icon="🔍",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # -----------------------
-# Custom CSS
+# Custom CSS + JS
 # -----------------------
 st.markdown("""
 <style>
@@ -29,9 +28,8 @@ html, body, [class*="css"] {
     color: #c8cdd8;
 }
 
-/* Header */
 .main-title {
-    font-size: 2.4rem;
+    font-size: 2.2rem;
     font-weight: 700;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -42,10 +40,10 @@ html, body, [class*="css"] {
 }
 
 .subtitle {
-    font-size: 0.95rem;
-    color: #556;
+    font-size: 0.9rem;
+    color: #445;
     letter-spacing: 0.08em;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.2rem;
     font-family: 'Share Tech Mono', monospace;
 }
 
@@ -68,6 +66,7 @@ html, body, [class*="css"] {
     background: #161926;
 }
 
+/* Clickable ID badge */
 .item-id {
     font-family: 'Share Tech Mono', monospace;
     font-size: 0.85rem;
@@ -79,6 +78,21 @@ html, body, [class*="css"] {
     min-width: 3.5rem;
     text-align: center;
     letter-spacing: 0.05em;
+    cursor: pointer;
+    user-select: none;
+    flex-shrink: 0;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+    position: relative;
+}
+
+.item-id:active {
+    background: #1a3a70;
+}
+
+.item-id.copied {
+    background: #0a2a1a;
+    border-color: #1a7040;
+    color: #4caf50;
 }
 
 .item-name {
@@ -86,20 +100,35 @@ html, body, [class*="css"] {
     font-weight: 600;
     color: #d0d8e8;
     letter-spacing: 0.03em;
+    word-break: break-word;
 }
 
-.item-weapon {
-    color: #7a8aaa;
-    font-weight: 500;
+.item-weapon { color: #7a8aaa; font-weight: 500; }
+.item-skin   { color: #e2e8f0; }
+.separator   { color: #2a7fff; margin: 0 0.3rem; }
+
+/* Toast notification */
+#copy-toast {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: #1a3a70;
+    color: #60abff;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.85rem;
+    padding: 0.5rem 1.2rem;
+    border-radius: 4px;
+    border: 1px solid #2a7fff;
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+    z-index: 9999;
 }
 
-.item-skin {
-    color: #e2e8f0;
-}
-
-.separator {
-    color: #2a7fff;
-    margin: 0 0.3rem;
+#copy-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
 }
 
 /* Sidebar */
@@ -108,20 +137,12 @@ section[data-testid="stSidebar"] {
     border-right: 1px solid #1e2330;
 }
 
-section[data-testid="stSidebar"] .stMarkdown h3 {
-    color: #2a7fff;
-    font-family: 'Rajdhani', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    font-size: 0.85rem;
-}
-
-/* Stats badge */
+/* Stats */
 .stats-bar {
     display: flex;
-    gap: 1rem;
+    gap: 0.6rem;
     align-items: center;
-    margin-bottom: 1.2rem;
+    margin-bottom: 1rem;
     flex-wrap: wrap;
 }
 
@@ -129,44 +150,54 @@ section[data-testid="stSidebar"] .stMarkdown h3 {
     background: #13161e;
     border: 1px solid #1e2330;
     border-radius: 4px;
-    padding: 0.3rem 0.75rem;
+    padding: 0.25rem 0.65rem;
     font-family: 'Share Tech Mono', monospace;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     color: #7a8aaa;
 }
 
-.stat-badge span {
-    color: #2a7fff;
-    font-weight: 700;
+.stat-badge span { color: #2a7fff; font-weight: 700; }
+
+/* Quality table in main content */
+.quality-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.78rem;
+    margin: 0;
 }
 
-/* Quality box */
-.quality-block {
+.quality-table th {
+    color: #2a7fff;
+    text-align: left;
+    padding: 0.3rem 0.6rem;
+    border-bottom: 1px solid #1e2330;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+}
+
+.quality-table td {
+    padding: 0.25rem 0.6rem;
+    white-space: nowrap;
+}
+
+.quality-table tr:nth-child(even) td { background: #0f1118; }
+
+.q-fn { color: #4caf50; }
+.q-mw { color: #8bc34a; }
+.q-ft { color: #ffc107; }
+.q-ww { color: #ff9800; }
+.q-bs { color: #f44336; }
+
+.quality-wrap {
     background: #13161e;
     border: 1px solid #1e2330;
     border-radius: 4px;
-    padding: 0.8rem 1rem;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 0.78rem;
-    line-height: 2;
-    color: #7a9aaa;
+    padding: 0.6rem 0.2rem;
     margin-bottom: 1rem;
+    overflow-x: auto;
 }
-
-.quality-block .q-title {
-    color: #2a7fff;
-    font-weight: 700;
-    font-size: 0.82rem;
-    display: block;
-    margin-bottom: 0.3rem;
-    letter-spacing: 0.1em;
-}
-
-.q-fn  { color: #4caf50; }
-.q-mw  { color: #8bc34a; }
-.q-ft  { color: #ffc107; }
-.q-ww  { color: #ff9800; }
-.q-bs  { color: #f44336; }
 
 /* Input overrides */
 .stTextInput > div > div > input {
@@ -183,12 +214,6 @@ section[data-testid="stSidebar"] .stMarkdown h3 {
     box-shadow: 0 0 0 2px rgba(42,127,255,0.15) !important;
 }
 
-.stSelectbox > div > div {
-    background-color: #13161e !important;
-    border: 1px solid #1e2330 !important;
-    color: #e2e8f0 !important;
-}
-
 .stTextArea textarea {
     background-color: #0a0d12 !important;
     border: 1px solid #1e2330 !important;
@@ -197,18 +222,16 @@ section[data-testid="stSidebar"] .stMarkdown h3 {
     font-size: 0.8rem !important;
 }
 
-/* No results */
 .no-results {
     text-align: center;
     padding: 3rem;
     color: #334;
-    font-size: 1.1rem;
+    font-size: 1rem;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     font-family: 'Share Tech Mono', monospace;
 }
 
-/* Error box */
 .error-box {
     background: #1a0a0a;
     border: 1px solid #5a1a1a;
@@ -220,24 +243,59 @@ section[data-testid="stSidebar"] .stMarkdown h3 {
     font-size: 0.85rem;
 }
 
-/* Divider line */
-hr {
-    border: none;
-    border-top: 1px solid #1e2330;
-    margin: 1rem 0;
-}
+hr { border: none; border-top: 1px solid #1e2330; margin: 1rem 0; }
 
-/* Multiselect */
 .stMultiSelect > div {
     background-color: #13161e !important;
     border: 1px solid #1e2330 !important;
 }
 
-/* Hide Streamlit branding */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 header {visibility: hidden;}
 </style>
+
+<!-- Toast element -->
+<div id="copy-toast">Copied!</div>
+
+<script>
+function copyID(el, id) {
+    // Try clipboard API first
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(id).then(function() {
+            showCopied(el, id);
+        }).catch(function() {
+            fallbackCopy(el, id);
+        });
+    } else {
+        fallbackCopy(el, id);
+    }
+}
+
+function fallbackCopy(el, id) {
+    var ta = document.createElement('textarea');
+    ta.value = id;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand('copy'); } catch(e) {}
+    document.body.removeChild(ta);
+    showCopied(el, id);
+}
+
+function showCopied(el, id) {
+    el.classList.add('copied');
+    var toast = document.getElementById('copy-toast');
+    toast.textContent = 'Copied: ' + id;
+    toast.classList.add('show');
+    setTimeout(function() {
+        el.classList.remove('copied');
+        toast.classList.remove('show');
+    }, 1400);
+}
+</script>
 """, unsafe_allow_html=True)
 
 
@@ -246,20 +304,13 @@ header {visibility: hidden;}
 # -----------------------
 @st.cache_data
 def load_items(filepath="gitskins.json"):
-    """Load items from gitskins.json.
-    Supports three formats:
-      1. Category dict:  {"AK-47": [{"ID": "AF", "skin": "AK-47 | Hydroponic"}, ...], ...}
-      2. Flat list:      [{"ID": "AF", "skin": "AK-47 | Hydroponic"}, ...]
-      3. Flat dict:      {"AF": "AK-47 | Hydroponic", ...}
-    Always returns a flat {ID: skin} dict internally.
-    """
     if not Path(filepath).exists():
         return None, None, f"File not found: `{filepath}` — make sure it's committed to your GitHub repo in the same folder as app.py."
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        # Format 1: {"AK-47": [{ID, skin}, ...], "AWP": [...], ...}
+        # Format 1: {"AK-47": [{ID, skin}, ...], ...}
         if isinstance(data, dict) and all(isinstance(v, list) for v in data.values()):
             result = {}
             categories = list(data.keys())
@@ -298,7 +349,6 @@ ITEMS, JSON_CATEGORIES, load_error = load_items()
 # Helpers
 # -----------------------
 def parse_item_name(name: str):
-    """Split 'Weapon | Skin' into (weapon, skin). Falls back gracefully."""
     if " | " in name:
         parts = name.split(" | ", 1)
         return parts[0].strip(), parts[1].strip()
@@ -308,14 +358,13 @@ def parse_item_name(name: str):
 def get_weapon_types():
     if not ITEMS:
         return []
-    # Use category keys from JSON if available (faster & preserves exact names)
     if JSON_CATEGORIES:
         return sorted(JSON_CATEGORIES)
     return sorted(set(parse_item_name(n)[0] for n in ITEMS.values()))
 
 
 # -----------------------
-# Sidebar
+# Sidebar (filters only)
 # -----------------------
 st.sidebar.markdown("### 🔍 Filters")
 
@@ -333,24 +382,6 @@ sort_option = st.sidebar.selectbox(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### 📋 Quality Codes")
-st.sidebar.markdown("""
-<div class="quality-block">
-<span class="q-title">STATTRAK + SOUVENIR</span>
-<span class="q-fn">46 FN</span> · <span class="q-mw">36 MW</span> · <span class="q-ft">26 FT</span> · <span class="q-ww">16 WW</span> · <span class="q-bs">06 BS</span>
-
-<span class="q-title">STATTRAK</span>
-<span class="q-fn">44 FN</span> · <span class="q-mw">34 MW</span> · <span class="q-ft">24 FT</span> · <span class="q-ww">14 WW</span> · <span class="q-bs">04 BS</span>
-
-<span class="q-title">SOUVENIR</span>
-<span class="q-fn">42 FN</span> · <span class="q-mw">32 MW</span> · <span class="q-ft">22 FT</span> · <span class="q-ww">12 WW</span> · <span class="q-bs">02 BS</span>
-
-<span class="q-title">STANDARD</span>
-<span class="q-fn">40 FN</span> · <span class="q-mw">30 MW</span> · <span class="q-ft">20 FT</span> · <span class="q-ww">10 WW</span> · <span class="q-bs">00 BS</span>
-</div>
-""", unsafe_allow_html=True)
-
-st.sidebar.markdown("---")
 st.sidebar.markdown(
     "<p style='color:#334;font-family:Share Tech Mono,monospace;font-size:0.75rem;'>by Marco🥒</p>",
     unsafe_allow_html=True
@@ -361,12 +392,47 @@ st.sidebar.markdown(
 # Main Content
 # -----------------------
 st.markdown('<div class="main-title">Skin Filter</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">// gitskins.json · item ID lookup</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">// gitskins.json · tap an ID to copy it</div>', unsafe_allow_html=True)
 
 # Error state
 if load_error:
     st.markdown(f'<div class="error-box">⚠ {load_error}</div>', unsafe_allow_html=True)
     st.stop()
+
+# -----------------------
+# Quality Codes (always visible, collapsible)
+# -----------------------
+with st.expander("📋 Quality Codes", expanded=False):
+    st.markdown("""
+<div class="quality-wrap">
+<table class="quality-table">
+<tr>
+  <th>TYPE</th>
+  <th class="q-fn">FN</th>
+  <th class="q-mw">MW</th>
+  <th class="q-ft">FT</th>
+  <th class="q-ww">WW</th>
+  <th class="q-bs">BS</th>
+</tr>
+<tr>
+  <td style="color:#2a7fff;font-size:0.7rem;">ST+SV</td>
+  <td class="q-fn">46</td><td class="q-mw">36</td><td class="q-ft">26</td><td class="q-ww">16</td><td class="q-bs">06</td>
+</tr>
+<tr>
+  <td style="color:#2a7fff;font-size:0.7rem;">STATTRAK</td>
+  <td class="q-fn">44</td><td class="q-mw">34</td><td class="q-ft">24</td><td class="q-ww">14</td><td class="q-bs">04</td>
+</tr>
+<tr>
+  <td style="color:#2a7fff;font-size:0.7rem;">SOUVENIR</td>
+  <td class="q-fn">42</td><td class="q-mw">32</td><td class="q-ft">22</td><td class="q-ww">12</td><td class="q-bs">02</td>
+</tr>
+<tr>
+  <td style="color:#2a7fff;font-size:0.7rem;">STANDARD</td>
+  <td class="q-fn">40</td><td class="q-mw">30</td><td class="q-ft">20</td><td class="q-ww">10</td><td class="q-bs">00</td>
+</tr>
+</table>
+</div>
+""", unsafe_allow_html=True)
 
 # Search bar
 query = st.text_input("", placeholder="Search by ID, weapon name, or skin name…").strip().lower()
@@ -377,18 +443,12 @@ query = st.text_input("", placeholder="Search by ID, weapon name, or skin name�
 filtered = []
 for item_id, name in ITEMS.items():
     weapon, skin = parse_item_name(name)
-
-    # Weapon type filter
     if weapon_filter and weapon not in weapon_filter:
         continue
-
-    # Text search
     if query and query not in f"{item_id} {name}".lower():
         continue
-
     filtered.append((item_id, name, weapon, skin))
 
-# Sort
 sort_key = {
     "Name A–Z": lambda x: x[1].lower(),
     "Name Z–A": lambda x: x[1].lower(),
@@ -407,9 +467,9 @@ unique_weapons = len(set(w for _, _, w, _ in filtered))
 
 st.markdown(f"""
 <div class="stats-bar">
-    <div class="stat-badge">Total items: <span>{total}</span></div>
+    <div class="stat-badge">Total: <span>{total}</span></div>
     <div class="stat-badge">Showing: <span>{showing}</span></div>
-    <div class="stat-badge">Weapons: <span>{unique_weapons}</span></div>
+    <div class="stat-badge">Types: <span>{unique_weapons}</span></div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -419,25 +479,29 @@ st.markdown(f"""
 if not filtered:
     st.markdown('<div class="no-results">// no items match your query</div>', unsafe_allow_html=True)
 else:
+    cards_html = ""
     for item_id, name, weapon, skin in filtered:
         if skin:
             display_name = f'<span class="item-weapon">{weapon}</span><span class="separator">|</span><span class="item-skin">{skin}</span>'
         else:
             display_name = f'<span class="item-skin">{name}</span>'
 
-        st.markdown(f"""
+        # onclick handler for copy
+        safe_id = item_id.replace("'", "\\'")
+        cards_html += f"""
         <div class="item-card">
-            <span class="item-id">{item_id}</span>
+            <span class="item-id" onclick="copyID(this, '{safe_id}')" title="Tap to copy">{item_id}</span>
             <span class="item-name">{display_name}</span>
-        </div>
-        """, unsafe_allow_html=True)
+        </div>"""
+
+    st.markdown(cards_html, unsafe_allow_html=True)
 
 # -----------------------
 # Export box
 # -----------------------
 if filtered:
     st.markdown("<hr>", unsafe_allow_html=True)
-    with st.expander("📋 Export visible IDs"):
+    with st.expander("📤 Export visible IDs"):
         col1, col2 = st.columns(2)
         with col1:
             st.text_area(
