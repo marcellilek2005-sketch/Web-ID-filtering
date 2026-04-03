@@ -247,35 +247,51 @@ header {visibility: hidden;}
 @st.cache_data
 def load_items(filepath="gitskins.json"):
     """Load items from gitskins.json.
-    Supports both formats:
-      - List:  [{"ID": "Qt", "skin": "AWP | Acheron"}, ...]
-      - Dict:  {"Qt": "AWP | Acheron", ...}
+    Supports three formats:
+      1. Category dict:  {"AK-47": [{"ID": "AF", "skin": "AK-47 | Hydroponic"}, ...], ...}
+      2. Flat list:      [{"ID": "AF", "skin": "AK-47 | Hydroponic"}, ...]
+      3. Flat dict:      {"AF": "AK-47 | Hydroponic", ...}
+    Always returns a flat {ID: skin} dict internally.
     """
     if not Path(filepath).exists():
-        return None, f"File not found: `{filepath}` — make sure it's committed to your GitHub repo in the same folder as app.py."
+        return None, None, f"File not found: `{filepath}` — make sure it's committed to your GitHub repo in the same folder as app.py."
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             data = json.load(f)
 
+        # Format 1: {"AK-47": [{ID, skin}, ...], "AWP": [...], ...}
+        if isinstance(data, dict) and all(isinstance(v, list) for v in data.values()):
+            result = {}
+            categories = list(data.keys())
+            for category, entries in data.items():
+                for entry in entries:
+                    if isinstance(entry, dict) and "ID" in entry and "skin" in entry:
+                        result[entry["ID"]] = entry["skin"]
+            if not result:
+                return None, None, "Category JSON found but no valid {ID, skin} entries detected."
+            return result, categories, None
+
+        # Format 2: [{ID, skin}, ...]
         if isinstance(data, list):
             result = {}
             for entry in data:
                 if isinstance(entry, dict) and "ID" in entry and "skin" in entry:
                     result[entry["ID"]] = entry["skin"]
             if not result:
-                return None, "JSON list found but no valid {ID, skin} entries detected."
-            return result, None
+                return None, None, "JSON list found but no valid {ID, skin} entries detected."
+            return result, None, None
 
+        # Format 3: {"AF": "AK-47 | Hydroponic", ...}
         if isinstance(data, dict):
-            return data, None
+            return data, None, None
 
-        return None, "Unrecognised JSON structure. Expected a list of {ID, skin} objects or a flat {id: name} dict."
+        return None, None, "Unrecognised JSON structure."
 
     except json.JSONDecodeError as e:
-        return None, f"JSON parse error: {e}"
+        return None, None, f"JSON parse error: {e}"
 
 
-ITEMS, load_error = load_items()
+ITEMS, JSON_CATEGORIES, load_error = load_items()
 
 
 # -----------------------
@@ -292,16 +308,11 @@ def parse_item_name(name: str):
 def get_weapon_types():
     if not ITEMS:
         return []
-    weapons = sorted(set(parse_item_name(n)[0] for n in ITEMS.values()))
-    return weapons
+    # Use category keys from JSON if available (faster & preserves exact names)
+    if JSON_CATEGORIES:
+        return sorted(JSON_CATEGORIES)
+    return sorted(set(parse_item_name(n)[0] for n in ITEMS.values()))
 
-
-# -----------------------
-# Early error stop (before anything tries to use ITEMS)
-# -----------------------
-if load_error:
-    st.markdown(f'<div class="error-box">⚠ {load_error}<br><br>Make sure <code>gitskins.json</code> is committed to your GitHub repo in the same folder as <code>app.py</code>.</div>', unsafe_allow_html=True)
-    st.stop()
 
 # -----------------------
 # Sidebar
@@ -309,7 +320,7 @@ if load_error:
 st.sidebar.markdown("### 🔍 Filters")
 
 weapon_filter = []
-weapon_types = get_weapon_types()
+weapon_types = get_weapon_types() if ITEMS else []
 weapon_filter = st.sidebar.multiselect(
     "Weapon type",
     options=weapon_types,
