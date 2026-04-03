@@ -246,15 +246,31 @@ header {visibility: hidden;}
 # -----------------------
 @st.cache_data
 def load_items(filepath="gitskins.json"):
-    """Load items from gitskins.json. Returns dict or None on error."""
+    """Load items from gitskins.json.
+    Supports both formats:
+      - List:  [{"ID": "Qt", "skin": "AWP | Acheron"}, ...]
+      - Dict:  {"Qt": "AWP | Acheron", ...}
+    """
     if not Path(filepath).exists():
-        return None, f"File not found: `{filepath}` — make sure it's in the same directory as app.py."
+        return None, f"File not found: `{filepath}` — make sure it's committed to your GitHub repo in the same folder as app.py."
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             data = json.load(f)
-        if not isinstance(data, dict):
-            return None, "JSON must be a flat object mapping IDs to names, e.g. `{\"Wh\": \"AK-47 | Case Hardened\"}`"
-        return data, None
+
+        if isinstance(data, list):
+            result = {}
+            for entry in data:
+                if isinstance(entry, dict) and "ID" in entry and "skin" in entry:
+                    result[entry["ID"]] = entry["skin"]
+            if not result:
+                return None, "JSON list found but no valid {ID, skin} entries detected."
+            return result, None
+
+        if isinstance(data, dict):
+            return data, None
+
+        return None, "Unrecognised JSON structure. Expected a list of {ID, skin} objects or a flat {id: name} dict."
+
     except json.JSONDecodeError as e:
         return None, f"JSON parse error: {e}"
 
@@ -281,18 +297,24 @@ def get_weapon_types():
 
 
 # -----------------------
+# Early error stop (before anything tries to use ITEMS)
+# -----------------------
+if load_error:
+    st.markdown(f'<div class="error-box">⚠ {load_error}<br><br>Make sure <code>gitskins.json</code> is committed to your GitHub repo in the same folder as <code>app.py</code>.</div>', unsafe_allow_html=True)
+    st.stop()
+
+# -----------------------
 # Sidebar
 # -----------------------
 st.sidebar.markdown("### 🔍 Filters")
 
 weapon_filter = []
-if ITEMS:
-    weapon_types = get_weapon_types()
-    weapon_filter = st.sidebar.multiselect(
-        "Weapon type",
-        options=weapon_types,
-        placeholder="All weapons"
-    )
+weapon_types = get_weapon_types()
+weapon_filter = st.sidebar.multiselect(
+    "Weapon type",
+    options=weapon_types,
+    placeholder="All weapons"
+)
 
 sort_option = st.sidebar.selectbox(
     "Sort by",
