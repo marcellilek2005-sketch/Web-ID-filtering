@@ -7,7 +7,7 @@ from pathlib import Path
 # -----------------------
 st.set_page_config(
     page_title="Skin Filter",
-    page_icon="🔍",
+    page_icon="🔪",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -250,6 +250,23 @@ hr { border: none; border-top: 1px solid #1e2330; margin: 1rem 0; }
     border: 1px solid #1e2330 !important;
 }
 
+/* Style st.code blocks as ID badges */
+.stCode > div {
+    background: #0a1428 !important;
+    border: 1px solid #1a3a70 !important;
+    border-radius: 3px !important;
+}
+.stCode code {
+    color: #2a7fff !important;
+    font-family: 'Share Tech Mono', monospace !important;
+    font-size: 0.85rem !important;
+    letter-spacing: 0.05em !important;
+}
+.stCode button { color: #2a7fff !important; }
+[data-testid="column"] {
+    padding-top: 0.1rem !important;
+    padding-bottom: 0.1rem !important;
+}
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 header {visibility: hidden;}
@@ -473,22 +490,21 @@ st.markdown(f"""
 if not filtered:
     st.markdown('<div class="no-results">// no items match your query</div>', unsafe_allow_html=True)
 else:
-    cards_html = ""
     for item_id, name, weapon, skin in filtered:
-        if skin:
-            display_name = f'<span class="item-weapon">{weapon}</span><span class="separator">|</span><span class="item-skin">{skin}</span>'
-        else:
-            display_name = f'<span class="item-skin">{name}</span>'
-
-        # onclick handler for copy
-        safe_id = item_id.replace("'", "\\'")
-        cards_html += f"""
-        <div class="item-card">
-            <span class="item-id" onclick="copyID(this, '{safe_id}')" title="Tap to copy">{item_id}</span>
-            <span class="item-name">{display_name}</span>
-        </div>"""
-
-    st.markdown(cards_html, unsafe_allow_html=True)
+        col_id, col_name = st.columns([1, 4])
+        with col_id:
+            st.code(item_id, language=None)
+        with col_name:
+            if skin:
+                st.markdown(
+                    f'<div class="item-name" style="padding:0.45rem 0"><span class="item-weapon">{weapon}</span><span class="separator"> | </span><span class="item-skin">{skin}</span></div>',
+                    unsafe_allow_html=True
+                )
+            else:
+                st.markdown(
+                    f'<div class="item-name" style="padding:0.45rem 0"><span class="item-skin">{name}</span></div>',
+                    unsafe_allow_html=True
+                )
 
 # -----------------------
 # Export box
